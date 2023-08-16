@@ -1,5 +1,5 @@
 @tool
-class_name ItemProtoset
+class_name ItemProtoSet
 extends Resource
 
 const KEY_ID: String = "id"
