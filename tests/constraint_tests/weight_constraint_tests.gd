@@ -1,12 +1,10 @@
 extends TestSuite
 
-const WeightConstraint = preload("res://addons/gloot/core/constraints/weight_constraint.gd")
-
 var inventory: Inventory
 var item: InventoryItem
 var weight_constraint: WeightConstraint
 
-const TEST_PROTOSET = preload("res://tests/data/item_definitions_stack.tres")
+const TEST_PROTOSET = preload("res://tests/data/protoset_stacks.json")
 
 
 func init_suite():
@@ -25,48 +23,43 @@ func init_suite():
 func init_test() -> void:
     item = create_item(TEST_PROTOSET, "big_item")
     inventory = create_inventory(TEST_PROTOSET)
-    inventory._constraint_manager.enable_weight_constraint()
-    weight_constraint = inventory._constraint_manager.get_weight_constraint()
+    weight_constraint = enable_weight_constraint(inventory)
+    weight_constraint.capacity = 100.0
 
 
 func cleanup_test() -> void:
     free_inventory(inventory)
-    free_item(item)
 
 
 func test_init() -> void:
     assert(weight_constraint.inventory == inventory)
-    assert(weight_constraint.capacity == 0.0)
-    assert(weight_constraint.occupied_space == 0.0)
+    assert(weight_constraint.capacity == 100.0)
+    assert(weight_constraint.get_occupied_space() == 0.0)
 
 
 func test_capacity() -> void:
     weight_constraint.capacity = 10.0
     assert(weight_constraint.capacity == 10.0)
-    assert(!weight_constraint.has_unlimited_capacity())
-
     weight_constraint.capacity = -10.0
     assert(weight_constraint.capacity == 0.0)
-    assert(weight_constraint.has_unlimited_capacity())
 
 
 func test_occupied_space() -> void:
     # Check if occupied_space is updated on item_added
     inventory.add_item(item)
-    assert(weight_constraint.occupied_space == WeightConstraint.get_item_weight(item))
+    assert(weight_constraint.get_occupied_space() == WeightConstraint.get_item_weight(item))
 
-    # Check if occupied_space is updated on item_modified
+    # Check if occupied_space is updated on item_property_changed
     WeightConstraint.set_item_weight(item, 10.0)
-    assert(weight_constraint.occupied_space == 10.0)
+    assert(weight_constraint.get_occupied_space() == 10.0)
 
     # Check if occupied_space is updated on item_removed
     inventory.remove_item(item)
-    assert(weight_constraint.occupied_space == 0.0)
-    free_item(item)
+    assert(weight_constraint.get_occupied_space() == 0.0)
 
 
 func test_get_free_space() -> void:
-    assert(weight_constraint.get_free_space() == 0.0)
+    assert(weight_constraint.get_free_space() == 100.0)
     weight_constraint.capacity = 10.0
     assert(weight_constraint.get_free_space() == 10.0)
     weight_constraint.capacity = 100.0
@@ -75,23 +68,19 @@ func test_get_free_space() -> void:
 
 
 func test_get_space_for() -> void:
-    assert(weight_constraint.get_space_for(item).is_inf())
+    assert(weight_constraint.get_space_for(item) == 5)
 
     weight_constraint.capacity = 10.0
-    assert(!weight_constraint.get_space_for(item).is_inf())
-    assert(weight_constraint.get_space_for(item).count == 0)
+    assert(weight_constraint.get_space_for(item) == 0)
 
     weight_constraint.capacity = 20.0
-    assert(!weight_constraint.get_space_for(item).is_inf())
-    assert(weight_constraint.get_space_for(item).count == 1)
+    assert(weight_constraint.get_space_for(item) == 1)
 
     weight_constraint.capacity = 40.0
-    assert(!weight_constraint.get_space_for(item).is_inf())
-    assert(weight_constraint.get_space_for(item).count == 2)
+    assert(weight_constraint.get_space_for(item) == 2)
 
     inventory.add_item(item)
-    assert(!weight_constraint.get_space_for(item).is_inf())
-    assert(weight_constraint.get_space_for(item).count == 1)
+    assert(weight_constraint.get_space_for(item) == 1)
 
 
 func test_swap_items() -> void:
@@ -99,8 +88,9 @@ func test_swap_items() -> void:
     var small_item = inventory.create_and_add_item("minimal_item")
     
     var inv2 = Inventory.new()
-    inv2.item_protoset = TEST_PROTOSET
-    inv2._constraint_manager.enable_weight_constraint(20.0)
+    inv2.protoset = TEST_PROTOSET
+    enable_weight_constraint(inv2, 20.0)
+
     var big_item = inv2.create_and_add_item("big_item")
 
     assert(!InventoryItem.swap(small_item, big_item))
@@ -118,7 +108,7 @@ func test_serialize() -> void:
     var capacity = weight_constraint.capacity
 
     weight_constraint.reset()
-    assert(weight_constraint.capacity == 0)
+    assert(weight_constraint.capacity == WeightConstraint.DEFAULT_CAPACITY)
 
     assert(weight_constraint.deserialize(constraint_data))
     assert(weight_constraint.capacity == capacity)
@@ -136,7 +126,7 @@ func test_serialize_json() -> void:
     constraint_data = test_json_conv.data
 
     weight_constraint.reset()
-    assert(weight_constraint.capacity == 0)
+    assert(weight_constraint.capacity == WeightConstraint.DEFAULT_CAPACITY)
     
     assert(weight_constraint.deserialize(constraint_data))
     assert(weight_constraint.capacity == capacity)

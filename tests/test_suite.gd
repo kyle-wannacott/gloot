@@ -44,38 +44,52 @@ func _run_tests():
         cleanup_test()
 
 
-func create_inventory(protoset: ItemProtoset) -> Inventory:
+func create_inventory(protoset: JSON) -> Inventory:
     var inventory = Inventory.new()
-    inventory.item_protoset = protoset
+    inventory.protoset = protoset
     return inventory
 
 
-func create_inventory_stacked(protoset: ItemProtoset, capacity: float) -> InventoryStacked:
-    var inventory = InventoryStacked.new()
-    inventory.item_protoset = protoset
-    inventory.capacity = capacity
+func create_inventory_stacked(protoset: JSON, capacity: float) -> Inventory:
+    var inventory = Inventory.new()
+    inventory.protoset = protoset
+    enable_weight_constraint(inventory, capacity)
+
     return inventory
 
 
-func create_inventory_grid(protoset: ItemProtoset, size: Vector2i) -> InventoryGrid:
-    var inventory = InventoryGrid.new()
-    inventory.item_protoset = protoset
-    inventory.size = size
+func create_inventory_grid(protoset: JSON, size: Vector2i) -> Inventory:
+    var inventory = Inventory.new()
+    inventory.protoset = protoset
+    enable_grid_constraint(inventory, size)
+
     return inventory
 
 
-func create_inventory_grid_stacked(protoset: ItemProtoset, size: Vector2i) -> InventoryGridStacked:
-    var inventory = InventoryGridStacked.new()
-    inventory.item_protoset = protoset
-    inventory.size = size
-    return inventory
+func enable_weight_constraint(inventory: Inventory, capacity: float = WeightConstraint.DEFAULT_CAPACITY) -> WeightConstraint:
+    var weight_constraint = WeightConstraint.new()
+    weight_constraint.capacity = capacity
+    inventory.add_child(weight_constraint)
+    return weight_constraint
+
+
+func enable_grid_constraint(inventory: Inventory, size: Vector2i = GridConstraint.DEFAULT_SIZE) -> GridConstraint:
+    var grid_constraint = GridConstraint.new()
+    grid_constraint.size = size
+    inventory.add_child(grid_constraint)
+    return grid_constraint
+
+
+func enable_item_count_constraint(inventory: Inventory, capacity: int = ItemCountConstraint.DEFAULT_CAPACITY) -> ItemCountConstraint:
+    var item_count_constraint = ItemCountConstraint.new()
+    item_count_constraint.capacity = capacity
+    inventory.add_child(item_count_constraint)
+    return item_count_constraint
 
 
 # Create an item with the given prototype ID from the given protoset
-func create_item(protoset: ItemProtoset, prototype_id: String) -> InventoryItem:
-    var item = InventoryItem.new()
-    item.protoset = protoset
-    item.prototype_id = prototype_id
+func create_item(protoset: JSON, prototype_id: String) -> InventoryItem:
+    var item = InventoryItem.new(protoset, prototype_id)
     return item
 
 
@@ -92,20 +106,12 @@ func clear_inventory(inventory: Inventory) -> void:
     while inventory.get_item_count() > 0:
         var item = inventory.get_items()[0]
         assert(inventory.remove_item(item))
-        item.free()
-
-
-# Free the given inventory item, if valid
-func free_item(item) -> void:
-    _free_if_valid(item)
 
 
 # Free the given item slot, if valid
 func free_slot(slot) -> void:
     if !is_node_valid(slot):
         return
-    if slot.get_item() != null:
-        slot.get_item().free()
     slot.free()
 
 
@@ -117,4 +123,3 @@ func _free_if_valid(node) -> void:
 
 func is_node_valid(node) -> bool:
     return node != null && !node.is_queued_for_deletion() && is_instance_valid(node)
-
